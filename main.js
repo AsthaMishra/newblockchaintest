@@ -1,5 +1,4 @@
 const { ethers } = require("ethers");
-const fetch = require("node-fetch");
 require("dotenv").config();
 const abi = require("./abi/basicnft.json");
 
