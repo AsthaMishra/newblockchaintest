@@ -1,5 +1,5 @@
 const { ethers } = require("ethers");
-const axios = require("axios");
+const fetch = require("node-fetch");
 require("dotenv").config();
 const abi = require("./abi/basicnft.json");
 
@@ -10,13 +10,11 @@ const contract = new ethers.Contract(contractAddress, abi, provider);
 
 async function main() {
   provider.on("debug", (data) => {
-    console.log("data ", data);
+    //console.log("data ", data);
   });
 
   contract.on("Transfer", (from, to, tokenId, event) => {
-    console.log(
-      `${event} token if ${tokenId}  txn hash ${event.data.transactionHash}`
-    );
+    console.log(`${event} token if ${tokenId}  `);
 
     let info = {
       from: from,
@@ -25,8 +23,14 @@ async function main() {
       data: event,
     };
     console.log(JSON.stringify(info, null, 4));
-    GetTotalCost(event.data.transactionHash);
+    GetTotalCost(event.transactionHash);
     getDetailsOfToken(contract, tokenId);
+
+    console.log("done till details");
+
+    console.log(`  event data ${event}`);
+    console.log(`  event data ${event.transactionHash}`);
+
     //getMetaDataOfToken();
 
     //   if (
@@ -46,16 +50,17 @@ async function GetTotalCost(txnHash) {
   console.log("Reciept ", transactionReciept);
   const { gasUsed, effectiveGasPrice } = transactionReciept;
   console.log(
-    "total transaction cost ",
-    transactionReciept.gasUsed,
+    "total gasUsed cost ",
+    gasUsed.toString(),
     " effectiveGasPrice ",
-    transactionReciept.effectiveGasPrice
+    effectiveGasPrice.toString()
   );
-  const gasCost = gasUsed * effectiveGasPrice;
 
-  const etherValue = ethers.utils.formatEther(gasCost);
+  const gasCost = gasUsed.toString() * effectiveGasPrice.toString();
+  console.log("total gasCost ", gasCost.toString(), "eth");
+  const etherValue = ethers.utils.parseEther(gasCost.toString());
 
-  console.log("total transaction cost ", etherValue, "eth");
+  console.log("total transaction cost ", etherValue.toString(), "eth");
 }
 
 async function getDetailsOfToken(contract, tokenId) {
@@ -82,38 +87,50 @@ async function getMetaDataOfToken() {
     id: 42,
   });
 
-  var config = {
+  //   var config = {
+  //     method: "post",
+  //     url: apikey,
+  //     headers: {
+  //       "Content-Type": "application/json",
+  //     },
+  //     data: data,
+  //   };
+
+  fetch(apikey, {
     method: "post",
-    url: apikey,
     headers: {
-      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     data: data,
-  };
-
-  axios(config)
+  })
     .then(function (response) {
-      console.log(JSON.stringify(response.data.result, null, 2));
+      console.log("response ", JSON.stringify(response.data.result, null, 2));
     })
     .catch(function (error) {
-      console.log(error);
+      console.log("error ", error);
     });
+
+  //   axios(config)
+  //     .then(function (response) {
+  //       console.log("response ", JSON.stringify(response.data.result, null, 2));
+  //     })
+  //     .catch(function (error) {
+  //       console.log("error ", error);
+  //     });
 }
 
 //check for malicious addresses on etherium abuse list
-async function checkForMaliciousAdd(addTockeck) {
-  const address = addTockeck; // The address to check
-
-  var config = {
-    method: "get",
-    url: `https://api.abuseipdb.com/api/v2/check?ethereumAddress=${address}&maxAgeInDays=90`,
-    headers: {
-      Key: apikey, // Replace with your API key
-      Accept: "application/json",
-    },
-  };
-
-  axios(config)
+async function checkForMaliciousAdd(address) {
+  // Make a request to the Ethereum Abuse List API
+  fetch(
+    `https://api.abuseipdb.com/api/v2/check?ethereumAddress=${address}&maxAgeInDays=90`,
+    {
+      headers: {
+        Key: apikey, // Replace with your API key
+        Accept: "application/json",
+      },
+    }
+  )
     .then((response) => response.json()) // Parse the response as JSON
     .then((data) => {
       if (data.data.abuseConfidenceScore > 0) {
@@ -129,31 +146,25 @@ async function checkForMaliciousAdd(addTockeck) {
 }
 
 //check for malicious addresses on bitcoin abuse list
-async function checkForMaliciousAddressOnBitCoinAbuseList(addTockeck) {
-  const address = addTockeck; // The address to check
-
-  var config = {
-    method: "get",
-    url: `https://www.bitcoinabuse.com/api/reports/check?address=${address}`,
+async function checkForMaliciousAddressOnBitCoinAbuseList(address) {
+  // Make a request to the Bitcoin Abuse Database API
+  fetch(`https://www.bitcoinabuse.com/api/reports/check?address=${address}`, {
     headers: {
-      Key: apikey, // Replace with your API key
       Accept: "application/json",
     },
-  };
-
-  axios(config)
+  })
     .then((response) => response.json()) // Parse the response as JSON
     .then((data) => {
-      if (data.data.abuseConfidenceScore > 0) {
+      if (data.total > 0) {
         console.log(`${address} has been flagged as potentially abusive.`);
-        console.log(
-          `Abuse confidence score: ${data.data.abuseConfidenceScore}`
-        );
+        console.log(`Total reports: ${data.total}`);
+        console.log(`Last report: ${data.reports[0].date}`);
+        console.log(`Reported by: ${data.reports[0].source}`);
       } else {
         console.log(`${address} is not currently flagged as abusive.`);
       }
     })
-    .catch((error) => console.error(error.message));
+    .catch((error) => console.error(error));
 }
 
 main()
